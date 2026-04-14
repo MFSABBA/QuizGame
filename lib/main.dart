@@ -1,16 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:html_unescape/html_unescape.dart';
 
 void main() {
   runApp(const QuizApp());
 }
 
-
 class QuizApp extends StatelessWidget {
   const QuizApp({super.key});
-
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +37,10 @@ class QuizApp extends StatelessWidget {
   }
 }
 
-
 /* ================= HOME ================= */
-
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
 
   @override
   Widget build(BuildContext context) {
@@ -66,25 +61,21 @@ class HomePage extends StatelessWidget {
   }
 }
 
-
 /* ================= QUIZ ================= */
-
 
 class QuizPage extends StatefulWidget {
   const QuizPage({super.key});
 
-
   @override
   State<QuizPage> createState() => _QuizPageState();
 }
-
 
 class _QuizPageState extends State<QuizPage> {
   List domande = [];
   int indice = 0;
   int punteggio = 0;
   bool caricato = false;
-
+  final unescape = HtmlUnescape();
 
   @override
   void initState() {
@@ -92,29 +83,40 @@ class _QuizPageState extends State<QuizPage> {
     caricaDomande();
   }
 
-
   Future<void> caricaDomande() async {
-    final url =
-    Uri.parse('https://opentdb.com/api.php?amount=10&type=multiple');
-    final risposta = await http.get(url);
-    final dati = jsonDecode(risposta.body);
+    try {
+      final url = Uri.parse(
+        'https://opentdb.com/api.php?amount=10&type=multiple',
+      );
 
+      final risposta = await http.get(url);
+      final dati = jsonDecode(risposta.body);
 
-    setState(() {
-      domande = dati['results'];
-      caricato = true;
-    });
+      if (dati['response_code'] == 0 && dati['results'].isNotEmpty) {
+        setState(() {
+          domande = dati['results'];
+          caricato = true;
+        });
+      } else {
+        setState(() {
+          caricato = true;
+          domande = [];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        caricato = true;
+        domande = [];
+      });
+    }
   }
 
-
   void rispondi(String rispostaUtente) {
-    String rispostaCorretta = domande[indice]['correct_answer'];
+    String corretta = domande[indice]['correct_answer'];
 
-
-    if (rispostaUtente == rispostaCorretta) {
+    if (rispostaUtente == corretta) {
       punteggio++;
     }
-
 
     if (indice < domande.length - 1) {
       setState(() {
@@ -129,7 +131,6 @@ class _QuizPageState extends State<QuizPage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     if (!caricato) {
@@ -138,11 +139,30 @@ class _QuizPageState extends State<QuizPage> {
       );
     }
 
+    if (domande.isEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                "Errore nel caricare le domande",
+                style: TextStyle(fontSize: 20),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+                child: const Text("Torna indietro"),
+              )
+            ],
+          ),
+        ),
+      );
+    }
 
     List risposte = List.from(domande[indice]['incorrect_answers']);
     risposte.add(domande[indice]['correct_answer']);
     risposte.shuffle();
-
 
     return Scaffold(
       appBar: AppBar(
@@ -154,7 +174,7 @@ class _QuizPageState extends State<QuizPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              domande[indice]['question'],
+              unescape.convert(domande[indice]['question']),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 20,
@@ -168,7 +188,7 @@ class _QuizPageState extends State<QuizPage> {
                 child: ElevatedButton(
                   onPressed: () => rispondi(r),
                   child: Text(
-                    r,
+                    unescape.convert(r),
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 16),
                   ),
@@ -182,19 +202,15 @@ class _QuizPageState extends State<QuizPage> {
   }
 }
 
-
 /* ================= RISULTATO ================= */
-
 
 class ResultPage extends StatelessWidget {
   const ResultPage({super.key});
-
 
   @override
   Widget build(BuildContext context) {
     final int punteggio =
     ModalRoute.of(context)!.settings.arguments as int;
-
 
     return Scaffold(
       appBar: AppBar(title: const Text('Risultato')),
